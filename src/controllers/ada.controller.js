@@ -30,29 +30,35 @@ async function preguntarAda(req, res) {
   }
 }
 
+// Llama a la API gratuita de Google Gemini (Google AI Studio)
 async function llamarIA(pregunta) {
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
+  const modelo = process.env.AI_MODEL || "gemini-2.5-flash";
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${process.env.AI_API_KEY}`;
+
+  const response = await fetch(url, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": process.env.AI_API_KEY,
-      "anthropic-version": "2023-06-01",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: process.env.AI_MODEL || "claude-sonnet-4-6",
-      max_tokens: 500,
-      system: PROMPT_SISTEMA,
-      messages: [{ role: "user", content: pregunta }],
+      systemInstruction: {
+        parts: [{ text: PROMPT_SISTEMA }],
+      },
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: pregunta }],
+        },
+      ],
     }),
   });
 
   if (!response.ok) {
-    throw new Error(`Error de la API de IA: ${response.status}`);
+    const detalle = await response.text();
+    throw new Error(`Error de la API de Gemini (${response.status}): ${detalle}`);
   }
 
   const data = await response.json();
-  const bloqueTexto = data.content.find((bloque) => bloque.type === "text");
-  return bloqueTexto ? bloqueTexto.text : "No obtuve una respuesta clara, intenta de nuevo.";
+  const texto = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  return texto || "No obtuve una respuesta clara, intenta de nuevo.";
 }
 
 async function obtenerHistorial(req, res) {
